@@ -1,6 +1,7 @@
 import os
 import sys
 import traceback
+import webbrowser
 from dotenv import load_dotenv
 
 # Правильно загружаем .env даже если программа скомпилирована в .exe
@@ -15,61 +16,62 @@ if os.path.exists(env_path):
     print(f"Загружены настройки из: {env_path}")
 
 from sozd_parser import SozdParser
-from sozd_parser.export import save_almighty_html
-#from sozd_parser.telegram_bot import send_digest, is_enabled
+from sozd_parser.html_generator import HtmlGenerator
 
-def generate_prompt(bill):
-    return f"""Ты — независимый аналитик законодательства России.
-Задача: кратко и понятно объяснить законопроект обычному человеку.
-
-Нужно дать:
-1) Короткое резюме.
-2) 3 аргумента ЗА.
-3) 3 аргумента ПРОТИВ.
-4) Кому это выгодно/невыгодно.
-5) На что обратить внимание гражданину.
-6) Вывод без политической агитации.
-
-Данные законопроекта:
-Название: {bill.title}
-Номер: {bill.number}
-Статус: {bill.status}
-Краткое описание: {bill.summary or 'Нет описания'}
-"""
+# Безопасный импорт Telegram-бота (Feature Toggle)
+try:
+    from sozd_parser.telegram_bot import SozdTelegramBot
+    TELEGRAM_AVAILABLE = True
+except ImportError:
+    TELEGRAM_AVAILABLE = False
+    print("[INFO] Telegram-модуль отключен (Сборка для домохозяек).")
 
 def main():
+    print("="*40)
+    print(" 🏛  Дума на цифровой кухне (Парсер СОЗД)")
+    print("="*40)
+
     try:
-        print("Начинаем парсинг СОЗД Думы...")
-        parser = SozdParser(delay=2.0)
-        bills = parser.get_recent_bills(limit=10)
-        enriched = []
+        # 1. Парсинг данных
+        print("\n[1/3] Собираю свежие законопроекты с сайта Госдумы...")
+        parser = SozdParser()
+        laws = parser.get_latest_laws(limit=20)
 
-        for i, bill in enumerate(bills):
-            print(f"Обработка {i+1}/{len(bills)}: {bill.number}...")
-            try:
-                b = parser.enrich_bill(bill)
-                b.assist_prompt = generate_prompt(b).replace('\n', '\\n')
-                enriched.append(b)
-            except Exception as e:
-                print(f" Ошибка при обработке {bill.number}: {e}")
-                bill.assist_prompt = generate_prompt(bill).replace('\n', '\\n')
-                enriched.append(bill)
+        if not laws:
+            print("Новых законопроектов не найдено. Попробуйте позже.")
+            return
 
-        out_html = os.path.join(application_path, 'index.html')
-        print(f"Генерируем файл {out_html}...")
-        save_almighty_html(out_html, enriched)
+        print(f"Успешно загружено законопроектов: {len(laws)}")
 
-#        if is_enabled():
-#           print("Отправляем дайджест в Telegram...")
-#            try:
-#                send_digest(enriched)
-#                print("Telegram: успешно отправлено!")
-#            except Exception as e:
-#                print(f"Telegram: ошибка отправки: {e}")
-#        else:
-#            print("Telegram-бот не настроен (пропускаем).")
+        # 2. Генерация HTML
+        print("[2/3] Готовлю кухонный интерфейс (HTML)...")
+        html_gen = HtmlGenerator()
+        html_gen.generate(laws, os.path.join(application_path, 'index.html'))
+
+        # 3. Отправка в Telegram (если доступно и настроено)
+        print("[3/3] Проверка Telegram...")
+        if TELEGRAM_AVAILABLE:
+            token = os.environ.get('TELEGRAM_BOT_TOKEN')
+            chat_id = os.environ.get('TELEGRAM_CHAT_ID')
+
+            if token and chat_id:
+                try:
+                    bot = SozdTelegramBot(token, chat_id)
+                    bot.send_digest(laws[:5]) # Отправляем только топ-5
+                    print("Telegram: дайджест успешно отправлен!")
+                except Exception as e:
+                    print(f"Telegram: ошибка отправки: {e}")
+            else:
+                print("Telegram: токены не найдены в .env (пропускаем).")
+        else:
+            print("Telegram: модуль деактивирован, пропускаем.")
 
         print("\nУСПЕШНО! Файл index.html создан рядом с программой.")
+
+        # 4. Автоматическое открытие браузера
+        html_path = 'file://' + os.path.realpath(os.path.join(application_path, 'index.html'))
+        print("Открываю законы в вашем браузере...")
+        webbrowser.open(html_path)
 
     except Exception as e:
         print(f"\nКРИТИЧЕСКАЯ ОШИБКА: {e}")
