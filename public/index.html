@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Дума на цифровой кухне</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;max-width:900px;margin:40px auto;padding:0 16px;line-height:1.5;background:#f6f8fa;color:#24292e}
+    .bill{background:#fff;border:1px solid #e1e4e8;border-radius:6px;padding:20px;margin:16px 0;box-shadow:0 1px 3px rgba(27,31,35,0.04)}
+    .muted{color:#586069;font-size:0.9em;margin-bottom:12px}
+    .btn{background:#0366d6;color:#fff;border:1px solid rgba(27,31,35,0.2);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500;margin-top:12px;transition:0.2s}
+    .btn:hover{background:#005cc5}
+    .btn-success{background:#2ea44f;}
+    .btn-success:hover{background:#2c974b;}
+    .prompt-box{display:none;background:#f6f8fa;padding:16px;border-radius:6px;margin-top:12px;font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;white-space:pre-wrap;border:1px solid #e1e4e8;font-size:13px;color:#24292e;line-height:1.45}
+    a{color:#0366d6;text-decoration:none}
+    a:hover{text-decoration:underline}
+  </style>
+</head>
+<body>
+  <h1>🏛️ Дума на цифровой кухне</h1>
+  <p class="muted">Свежие законопроекты. Нажми <b>Assist Mode</b>, скопируй текст и вставь в любой ИИ-чат (Алису, GigaChat, ChatGPT), чтобы получить понятный разбор. Если подключен Telegram, GitHub Actions также отправит короткий дайджест в чат.</p>
+  <div id="app">Загрузка данных...</div>
+  <script>
+    // Загружаем данные. Папка data копируется внутрь public при деплое.
+    fetch('data/bills.json')
+      .then(r => r.json())
+      .then(items => {
+        const app = document.getElementById('app');
+        app.innerHTML = items.map((b, i) => `
+          <div class="bill">
+            <h3 style="margin-top:0">${b.title || 'Без названия'}</h3>
+            <div class="muted">Номер: ${b.number || '-'} | Статус: ${b.status || '-'} | <a href="${b.url}" target="_blank">Карточка в СОЗД</a></div>
+            <p>${(b.summary || '').substring(0, 300)}...</p>
+            <button class="btn" onclick="togglePrompt(${i})">✨ Assist Mode: получить промпт</button>
+            <button class="btn btn-success" onclick="copyPrompt(${i})" style="display:none" id="copy-${i}">📋 Скопировать</button>
+            <div class="prompt-box" id="prompt-${i}">${b.assist_prompt}</div>
+          </div>
+        `).join('');
+      })
+      .catch(() => {
+        document.getElementById('app').innerHTML = 'Ошибка загрузки данных. Убедитесь, что запущен парсер.';
+      });
+
+    window.togglePrompt = function(idx) {
+      const el = document.getElementById('prompt-' + idx);
+      const copyBtn = document.getElementById('copy-' + idx);
+      if(el.style.display === 'block') {
+        el.style.display = 'none';
+        copyBtn.style.display = 'none';
+      } else {
+        el.style.display = 'block';
+        copyBtn.style.display = 'inline-block';
+      }
+    }
+
+    window.copyPrompt = function(idx) {
+      const el = document.getElementById('prompt-' + idx);
+      navigator.clipboard.writeText(el.innerText).then(() => {
+        const btn = document.getElementById('copy-' + idx);
+        btn.innerText = '✅ Скопировано!';
+        setTimeout(() => btn.innerText = '📋 Скопировать', 2000);
+      });
+    }
+  </script>
+</body>
+</html>

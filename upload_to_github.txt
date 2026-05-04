@@ -1,0 +1,1 @@
+Открой GitHub -> uploading an existing file -> перетащи все файлы из ZIP -> Commit changes -> Actions -> Run workflow.
