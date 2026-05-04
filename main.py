@@ -55,22 +55,31 @@ def make_assist_prompt(bill) -> str:
 
 
 def main():
-    print("="*40)
+    print("=" * 40)
     print(" 🏛  Дума на цифровой кухне (Парсер СОЗД)")
-    print("="*40)
+    print("=" * 40)
 
     if not PARSER_AVAILABLE or not HTML_AVAILABLE:
         print("\n[FATAL] Программа собрана некорректно — отсутствуют ключевые модули.")
         print("Пожалуйста, сообщите об ошибке разработчику.")
-        print("="*40)
+        print("=" * 40)
         input("Нажмите Enter, чтобы закрыть это окно...")
         return
 
     try:
-        # 1. Получаем список законопроектов
         print("\n[1/3] Собираю свежие законопроекты с сайта Госдумы...")
-        parser = SozdParser(delay=1.5)
-        bills = parser.get_recent_bills(limit=20)
+        try:
+            parser = SozdParser(delay=1.5)
+            bills = parser.get_recent_bills(limit=20)
+        except Exception as e:
+            print("\n[ОШИБКА СЕТИ] Не удалось подключиться к сайту Госдумы.")
+            print("Возможные причины:")
+            print("  • Сайт sozd.duma.gov.ru недоступен из вашей страны или сети")
+            print("  • Проверьте подключение к интернету")
+            print("  • Попробуйте запустить программу позже")
+            print(f"\nТехническая деталь: {e}")
+            input("\nНажмите Enter, чтобы закрыть это окно...")
+            return
 
         if not bills:
             print("Новых законопроектов не найдено. Попробуйте позже.")
@@ -79,28 +88,19 @@ def main():
 
         print(f"Найдено законопроектов: {len(bills)}")
 
-        # 2. Обогащаем каждый законопроект деталями
         print("[2/3] Загружаю подробности по каждому законопроекту...")
         enriched = []
         for i, bill in enumerate(bills, 1):
-            try:
-                print(f"  [{i}/{len(bills)}] {bill.title[:60]}...")
-                bill = parser.enrich_bill(bill)
-            except Exception as e:
-                print(f"  [WARN] Не удалось обогатить законопроект {bill.number}: {e}")
-            
-            # Генерируем промпт для ИИ
+            print(f"  [{i}/{len(bills)}] {bill.title[:60]}...")
+            bill = parser.enrich_bill(bill)
             if not bill.assist_prompt:
                 bill.assist_prompt = make_assist_prompt(bill)
-            
             enriched.append(bill)
 
-        # 3. Генерируем HTML
         print("[3/3] Готовлю кухонный интерфейс (HTML)...")
         html_path = os.path.join(application_path, 'index.html')
         save_almighty_html(html_path, enriched)
 
-        # 4. Отправка в Telegram (если настроено)
         if TELEGRAM_AVAILABLE:
             token = os.environ.get('TELEGRAM_BOT_TOKEN')
             chat_id = os.environ.get('TELEGRAM_CHAT_ID')
@@ -121,8 +121,9 @@ def main():
         print(f"\nКРИТИЧЕСКАЯ ОШИБКА: {e}")
         traceback.print_exc()
     finally:
-        print("\n" + "="*40)
+        print("\n" + "=" * 40)
         input("Нажмите Enter, чтобы закрыть это окно...")
+
 
 if __name__ == '__main__':
     main()
