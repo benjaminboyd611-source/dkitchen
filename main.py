@@ -4,7 +4,6 @@ import traceback
 import webbrowser
 from dotenv import load_dotenv
 
-# Правильно загружаем .env даже если программа скомпилирована в .exe
 if getattr(sys, 'frozen', False):
     application_path = os.path.dirname(sys.executable)
 else:
@@ -25,11 +24,11 @@ except ImportError as e:
     print(f"[FATAL] Не найден модуль парсера: {e}")
 
 try:
-    from sozd_parser.html_generator import HtmlGenerator
+    from sozd_parser.export import save_almighty_html
     HTML_AVAILABLE = True
 except ImportError as e:
     HTML_AVAILABLE = False
-    print(f"[FATAL] Не найден модуль HTML-генератора: {e}")
+    print(f"[FATAL] Не найден модуль экспорта: {e}")
 
 try:
     from sozd_parser.telegram_bot import SozdTelegramBot
@@ -44,7 +43,6 @@ def main():
     print(" 🏛  Дума на цифровой кухне (Парсер СОЗД)")
     print("="*40)
 
-    # Критическая проверка — без этих модулей работа невозможна
     if not PARSER_AVAILABLE or not HTML_AVAILABLE:
         print("\n[FATAL] Программа собрана некорректно — отсутствуют ключевые модули.")
         print("Пожалуйста, сообщите об ошибке разработчику.")
@@ -53,7 +51,6 @@ def main():
         return
 
     try:
-        # 1. Парсинг данных
         print("\n[1/3] Собираю свежие законопроекты с сайта Госдумы...")
         parser = SozdParser()
         laws = parser.get_latest_laws(limit=20)
@@ -64,12 +61,10 @@ def main():
 
         print(f"Успешно загружено законопроектов: {len(laws)}")
 
-        # 2. Генерация HTML
         print("[2/3] Готовлю кухонный интерфейс (HTML)...")
-        html_gen = HtmlGenerator()
-        html_gen.generate(laws, os.path.join(application_path, 'index.html'))
+        html_path = os.path.join(application_path, 'index.html')
+        save_almighty_html(html_path, laws)
 
-        # 3. Отправка в Telegram (если доступно и настроено)
         print("[3/3] Проверка Telegram...")
         if TELEGRAM_AVAILABLE:
             token = os.environ.get('TELEGRAM_BOT_TOKEN')
@@ -88,12 +83,9 @@ def main():
 
         print("\nУСПЕШНО! Файл index.html создан рядом с программой.")
 
-        # 4. Автоматическое открытие браузера
-        html_path = 'file://' + os.path.realpath(
-            os.path.join(application_path, 'index.html')
-        )
+        file_url = 'file://' + os.path.realpath(html_path)
         print("Открываю законы в вашем браузере...")
-        webbrowser.open(html_path)
+        webbrowser.open(file_url)
 
     except Exception as e:
         print(f"\nКРИТИЧЕСКАЯ ОШИБКА: {e}")
