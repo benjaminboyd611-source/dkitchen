@@ -23,4 +23,5 @@ def save_markdown(path: str, bills: List[Bill]):
             lines.append(f'- Кратко: {b.summary[:500]}')
         lines.append('')
     Path(path).write_text('
-'.join(lines), encoding='utf-8')
+    text_to_write = '\n'.join(lines)
+    Path(path).write_text(text_to_write, encoding='utf-8')
