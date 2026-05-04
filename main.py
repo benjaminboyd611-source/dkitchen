@@ -16,7 +16,7 @@ if os.path.exists(env_path):
 
 from sozd_parser import SozdParser
 from sozd_parser.export import save_almighty_html
-from sozd_parser.telegram_bot import send_digest, is_enabled
+#from sozd_parser.telegram_bot import send_digest, is_enabled
 
 def generate_prompt(bill):
     return f"""Ты — независимый аналитик законодательства России.
