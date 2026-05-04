@@ -17,7 +17,7 @@ if os.path.exists(env_path):
 # === БЕЗОПАСНЫЙ ИМПОРТ ВСЕХ МОДУЛЕЙ ===
 
 try:
-    from sozd_parser import SozdParser
+    from sozd_parser.parser import SozdParser
     PARSER_AVAILABLE = True
 except ImportError as e:
     PARSER_AVAILABLE = False
@@ -38,6 +38,22 @@ except ImportError:
     print("[INFO] Telegram-модуль отключен (Сборка для домохозяек).")
 
 
+def make_assist_prompt(bill) -> str:
+    return (
+        f"Проанализируй законопроект Госдумы РФ:\n\n"
+        f"Название: {bill.title}\n"
+        f"Номер: {bill.number}\n"
+        f"Статус: {bill.status}\n"
+        f"Текст/аннотация: {bill.summary or 'не указана'}\n\n"
+        f"Задача:\n"
+        f"1. Объясни суть закона простым языком (2-3 предложения).\n"
+        f"2. Найди PRO — кому этот закон выгоден и почему.\n"
+        f"3. Найди CONTRA — кому он вреден, какие подводные камни.\n"
+        f"4. Оцени применимость в реальной жизни: что изменится для обычного человека?\n"
+        f"5. Кто является скрытым выгодоприобретателем?"
+    )
+
+
 def main():
     print("="*40)
     print(" 🏛  Дума на цифровой кухне (Парсер СОЗД)")
@@ -51,41 +67,55 @@ def main():
         return
 
     try:
+        # 1. Получаем список законопроектов
         print("\n[1/3] Собираю свежие законопроекты с сайта Госдумы...")
-        parser = SozdParser()
-        laws = parser.get_latest_laws(limit=20)
+        parser = SozdParser(delay=1.5)
+        bills = parser.get_recent_bills(limit=20)
 
-        if not laws:
+        if not bills:
             print("Новых законопроектов не найдено. Попробуйте позже.")
+            input("Нажмите Enter, чтобы закрыть это окно...")
             return
 
-        print(f"Успешно загружено законопроектов: {len(laws)}")
+        print(f"Найдено законопроектов: {len(bills)}")
 
-        print("[2/3] Готовлю кухонный интерфейс (HTML)...")
+        # 2. Обогащаем каждый законопроект деталями
+        print("[2/3] Загружаю подробности по каждому законопроекту...")
+        enriched = []
+        for i, bill in enumerate(bills, 1):
+            try:
+                print(f"  [{i}/{len(bills)}] {bill.title[:60]}...")
+                bill = parser.enrich_bill(bill)
+            except Exception as e:
+                print(f"  [WARN] Не удалось обогатить законопроект {bill.number}: {e}")
+            
+            # Генерируем промпт для ИИ
+            if not bill.assist_prompt:
+                bill.assist_prompt = make_assist_prompt(bill)
+            
+            enriched.append(bill)
+
+        # 3. Генерируем HTML
+        print("[3/3] Готовлю кухонный интерфейс (HTML)...")
         html_path = os.path.join(application_path, 'index.html')
-        save_almighty_html(html_path, laws)
+        save_almighty_html(html_path, enriched)
 
-        print("[3/3] Проверка Telegram...")
+        # 4. Отправка в Telegram (если настроено)
         if TELEGRAM_AVAILABLE:
             token = os.environ.get('TELEGRAM_BOT_TOKEN')
             chat_id = os.environ.get('TELEGRAM_CHAT_ID')
             if token and chat_id:
                 try:
                     bot = SozdTelegramBot(token, chat_id)
-                    bot.send_digest(laws[:5])
+                    bot.send_digest(enriched[:5])
                     print("Telegram: дайджест успешно отправлен!")
                 except Exception as e:
                     print(f"Telegram: ошибка отправки: {e}")
             else:
                 print("Telegram: токены не найдены в .env (пропускаем).")
-        else:
-            print("Telegram: модуль деактивирован, пропускаем.")
 
-        print("\nУСПЕШНО! Файл index.html создан рядом с программой.")
-
-        file_url = 'file://' + os.path.realpath(html_path)
-        print("Открываю законы в вашем браузере...")
-        webbrowser.open(file_url)
+        print("\nУСПЕШНО! Открываю законы в вашем браузере...")
+        webbrowser.open('file://' + os.path.realpath(html_path))
 
     except Exception as e:
         print(f"\nКРИТИЧЕСКАЯ ОШИБКА: {e}")
