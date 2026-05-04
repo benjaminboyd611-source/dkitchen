@@ -15,10 +15,22 @@ if os.path.exists(env_path):
     load_dotenv(env_path)
     print(f"Загружены настройки из: {env_path}")
 
-from sozd_parser import SozdParser
-from sozd_parser.html_generator import HtmlGenerator
+# === БЕЗОПАСНЫЙ ИМПОРТ ВСЕХ МОДУЛЕЙ ===
 
-# Безопасный импорт Telegram-бота (Feature Toggle)
+try:
+    from sozd_parser import SozdParser
+    PARSER_AVAILABLE = True
+except ImportError as e:
+    PARSER_AVAILABLE = False
+    print(f"[FATAL] Не найден модуль парсера: {e}")
+
+try:
+    from sozd_parser.html_generator import HtmlGenerator
+    HTML_AVAILABLE = True
+except ImportError as e:
+    HTML_AVAILABLE = False
+    print(f"[FATAL] Не найден модуль HTML-генератора: {e}")
+
 try:
     from sozd_parser.telegram_bot import SozdTelegramBot
     TELEGRAM_AVAILABLE = True
@@ -26,10 +38,19 @@ except ImportError:
     TELEGRAM_AVAILABLE = False
     print("[INFO] Telegram-модуль отключен (Сборка для домохозяек).")
 
+
 def main():
     print("="*40)
     print(" 🏛  Дума на цифровой кухне (Парсер СОЗД)")
     print("="*40)
+
+    # Критическая проверка — без этих модулей работа невозможна
+    if not PARSER_AVAILABLE or not HTML_AVAILABLE:
+        print("\n[FATAL] Программа собрана некорректно — отсутствуют ключевые модули.")
+        print("Пожалуйста, сообщите об ошибке разработчику.")
+        print("="*40)
+        input("Нажмите Enter, чтобы закрыть это окно...")
+        return
 
     try:
         # 1. Парсинг данных
@@ -53,11 +74,10 @@ def main():
         if TELEGRAM_AVAILABLE:
             token = os.environ.get('TELEGRAM_BOT_TOKEN')
             chat_id = os.environ.get('TELEGRAM_CHAT_ID')
-
             if token and chat_id:
                 try:
                     bot = SozdTelegramBot(token, chat_id)
-                    bot.send_digest(laws[:5]) # Отправляем только топ-5
+                    bot.send_digest(laws[:5])
                     print("Telegram: дайджест успешно отправлен!")
                 except Exception as e:
                     print(f"Telegram: ошибка отправки: {e}")
@@ -69,7 +89,9 @@ def main():
         print("\nУСПЕШНО! Файл index.html создан рядом с программой.")
 
         # 4. Автоматическое открытие браузера
-        html_path = 'file://' + os.path.realpath(os.path.join(application_path, 'index.html'))
+        html_path = 'file://' + os.path.realpath(
+            os.path.join(application_path, 'index.html')
+        )
         print("Открываю законы в вашем браузере...")
         webbrowser.open(html_path)
 
