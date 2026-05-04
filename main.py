@@ -59,15 +59,15 @@ def main():
         print(f"Генерируем файл {out_html}...")
         save_almighty_html(out_html, enriched)
 
-        if is_enabled():
-            print("Отправляем дайджест в Telegram...")
-            try:
-                send_digest(enriched)
-                print("Telegram: успешно отправлено!")
-            except Exception as e:
-                print(f"Telegram: ошибка отправки: {e}")
-        else:
-            print("Telegram-бот не настроен (пропускаем).")
+#        if is_enabled():
+#           print("Отправляем дайджест в Telegram...")
+#            try:
+#                send_digest(enriched)
+#                print("Telegram: успешно отправлено!")
+#            except Exception as e:
+#                print(f"Telegram: ошибка отправки: {e}")
+#        else:
+#            print("Telegram-бот не настроен (пропускаем).")
 
         print("\nУСПЕШНО! Файл index.html создан рядом с программой.")
 
