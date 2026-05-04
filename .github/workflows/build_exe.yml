@@ -25,10 +25,8 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DumaKitchen-Windows
-          path: |
-            dist/DumaKitchen.exe
-            .env.example
+          name: ${{ matrix.artifact_name }}
+          path: dist/
 
   build-mac:
     runs-on: macos-latest
@@ -47,9 +45,7 @@ jobs:
       - name: Build Mac App
         run: pyinstaller --noconfirm --onefile --windowed --collect-all sozd_parser --name DumaKitchen main.py
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+       uses: actions/upload-artifact@v4
         with:
-          name: DumaKitchen-Mac
-          path: |
-            dist/DumaKitchen-Mac
-            .env.example
+          name: ${{ matrix.artifact_name }}
+          path: dist/
