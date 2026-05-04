@@ -24,7 +24,7 @@ jobs:
           pip install pyinstaller
           
       - name: Build Windows EXE
-        run: pyinstaller --noconfirm --onefile --windowed --collect-all sozd_parser  --paths . --name DumaKitchen main.py
+        run: pyinstaller --noconfirm --onefile --windowed --paths . --collect-all sozd_parser --hidden-import sozd_parser.html_generator --hidden-import sozd_parser --name DumaKitchen main.py
         
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -50,7 +50,7 @@ jobs:
           pip install pyinstaller
           
       - name: Build Mac App
-        run: pyinstaller --noconfirm --onefile --windowed --collect-all sozd_parser  --paths .  --name DumaKitchen-Mac main.py
+        run: pyinstaller --noconfirm --onefile --windowed --paths . --collect-all sozd_parser --hidden-import sozd_parser.html_generator --hidden-import sozd_parser --name DumaKitchen-Mac main.py
         
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
