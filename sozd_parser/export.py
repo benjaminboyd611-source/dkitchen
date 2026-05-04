@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import List
 from datetime import datetime
@@ -23,6 +24,7 @@ HTML_TEMPLATE = """<!doctype html>
     a:hover { text-decoration: underline; }
     .header { text-align: center; margin-bottom: 40px; }
     .footer { text-align: center; color: #8b949e; font-size: 12px; margin-top: 50px; border-top: 1px solid #e1e4e8; padding-top: 20px; }
+    .no-bills { text-align: center; color: #586069; margin-top: 60px; font-size: 18px; }
   </style>
 </head>
 <body>
@@ -33,29 +35,31 @@ HTML_TEMPLATE = """<!doctype html>
 
   <div id="app"></div>
 
-  <div class="footer">
-      Обновлено: __DATE__
-  </div>
+  <div class="footer">Обновлено: __DATE__</div>
 
   <script>
-    const bills = __BILLS_JSON__;
-
-    const app = document.getElementById('app');
-    app.innerHTML = bills.map((b, i) => `
-      <div class="bill">
-        <h2 style="margin-top:0; font-size: 20px;">${b.title || 'Без названия'}</h2>
-        <div class="muted">Номер: ${b.number || '-'} | Статус: ${b.status || '-'} | <a href="${b.url}" target="_blank">📄 Карточка в СОЗД</a></div>
-        <p style="line-height: 1.6;">${(b.summary || '').substring(0, 400)}...</p>
-        <button class="btn" onclick="togglePrompt(${i})">✨ Assist Mode: получить промпт</button>
-        <button class="btn btn-success" onclick="copyPrompt(${i})" style="display:none" id="copy-${i}">📋 Скопировать</button>
-        <div class="prompt-box" id="prompt-${i}">${b.assist_prompt}</div>
-      </div>
-    `).join('');
+    var billsRaw = '__BILLS_PLACEHOLDER__';
+    var bills = JSON.parse(billsRaw);
+    var app = document.getElementById('app');
+    if (!bills || bills.length === 0) {
+      app.innerHTML = '<div class="no-bills">Законопроекты не найдены 😔</div>';
+    } else {
+      app.innerHTML = bills.map(function(b, i) {
+        return '<div class="bill">' +
+          '<h2 style="margin-top:0; font-size: 20px;">' + (b.title || 'Без названия') + '</h2>' +
+          '<div class="muted">Номер: ' + (b.number || '-') + ' | <a href="' + b.url + '" target="_blank">📄 Карточка в СОЗД</a></div>' +
+          '<p style="line-height: 1.6;">' + (b.summary || 'Аннотация недоступна').substring(0, 400) + '...</p>' +
+          '<button class="btn" onclick="togglePrompt(' + i + ')">✨ Assist Mode: получить промпт</button>' +
+          '<button class="btn btn-success" onclick="copyPrompt(' + i + ')" style="display:none" id="copy-' + i + '">📋 Скопировать</button>' +
+          '<div class="prompt-box" id="prompt-' + i + '">' + (b.assist_prompt || '') + '</div>' +
+          '</div>';
+      }).join('');
+    }
 
     function togglePrompt(idx) {
-      const el = document.getElementById('prompt-' + idx);
-      const copyBtn = document.getElementById('copy-' + idx);
-      if(el.style.display === 'block') {
+      var el = document.getElementById('prompt-' + idx);
+      var copyBtn = document.getElementById('copy-' + idx);
+      if (el.style.display === 'block') {
         el.style.display = 'none';
         copyBtn.style.display = 'none';
       } else {
@@ -65,26 +69,62 @@ HTML_TEMPLATE = """<!doctype html>
     }
 
     function copyPrompt(idx) {
-      const el = document.getElementById('prompt-' + idx);
-      navigator.clipboard.writeText(el.innerText).then(() => {
-        const btn = document.getElementById('copy-' + idx);
+      var el = document.getElementById('prompt-' + idx);
+      navigator.clipboard.writeText(el.innerText).then(function() {
+        var btn = document.getElementById('copy-' + idx);
         btn.innerText = '✅ Скопировано!';
-        setTimeout(() => btn.innerText = '📋 Скопировать', 2000);
+        setTimeout(function() { btn.innerText = '📋 Скопировать'; }, 2000);
       });
     }
   </script>
 </body>
 </html>"""
 
-def save_almighty_html(path: str, bills: List[Bill]):
-    bills_dicts = [b.to_dict() for b in bills]
-    bills_json = json.dumps(bills_dicts, ensure_ascii=False)
 
-    # Экранируем символы для безопасной вставки в JS
-    bills_json = bills_json.replace('\\', '\\\\').replace('<', '\\u003c')
+def _clean_text(text: str) -> str:
+    """Убирает навигационный мусор и лишние пробелы."""
+    if not text:
+        return ''
+    # Обрезаем до первого упоминания навигации
+    nav_markers = [
+        'Система обеспечения законодательной деятельности',
+        'СОЗД  Объекты',
+        'Объекты законотворчества',
+    ]
+    for marker in nav_markers:
+        idx = text.find(marker)
+        if idx > 50:  # если маркер не в самом начале
+            text = text[:idx]
+        elif idx == 0:
+            # весь текст — это навигация, возвращаем пустую строку
+            return ''
+    # Убираем множественные пробелы
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
+def save_almighty_html(path: str, bills: List[Bill]):
+    clean_bills = []
+    for b in bills:
+        d = b.to_dict()
+        d['title'] = _clean_text(d.get('title', '') or '').strip() or f"Законопроект №{b.number}"
+        d['summary'] = _clean_text(d.get('summary', '') or '')[:600]
+        d['status'] = _clean_text(d.get('status', '') or '')[:200]
+        d['assist_prompt'] = (d.get('assist_prompt', '') or '').replace('\n', '\\n')
+        clean_bills.append(d)
+
+    # Безопасная сериализация — экранируем для вставки внутрь строки JS
+    bills_json = json.dumps(clean_bills, ensure_ascii=False)
+    bills_json_escaped = (
+        bills_json
+        .replace('\\', '\\\\')
+        .replace("'", "\\'")
+        .replace('</script>', '<\\/script>')
+    )
 
     now_str = datetime.now().strftime("%d.%m.%Y %H:%M")
-
-    html = HTML_TEMPLATE.replace('__BILLS_JSON__', bills_json).replace('__DATE__', now_str)
+    html = HTML_TEMPLATE \
+        .replace('__BILLS_PLACEHOLDER__', bills_json_escaped) \
+        .replace('__DATE__', now_str)
 
     Path(path).write_text(html, encoding='utf-8')
